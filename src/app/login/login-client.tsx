@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Building2, Loader2, User, Mail, Lock, Briefcase, Users, CheckCircle } from 'lucide-react'
@@ -25,14 +25,8 @@ function LoginForm() {
   const nextUrl = searchParams.get('next')
   const message = searchParams.get('message')
   
-  // Show success message for password reset
-  const [showPasswordUpdated, setShowPasswordUpdated] = useState(false)
-  
-  useEffect(() => {
-    if (message === 'password-updated') {
-      setShowPasswordUpdated(true)
-    }
-  }, [message])
+  // Show success message for password reset (derived from URL, no useEffect needed)
+  const showPasswordUpdated = message === 'password-updated'
   
   // Detect if we're coming from an invite link
   const isInviteFlow = nextUrl?.includes('/accept-invite')
