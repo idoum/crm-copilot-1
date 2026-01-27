@@ -39,8 +39,14 @@ RUN npx prisma generate
 # Copy application code
 COPY . .
 
+# Skip env validation during build (secrets not available)
+ENV SKIP_ENV_VALIDATION=1
+
 # Build application
 RUN pnpm build
+
+# Unset for runtime (validation will run at startup)
+ENV SKIP_ENV_VALIDATION=
 
 
 # Final stage for app image

@@ -3,9 +3,15 @@ import { z } from 'zod'
 /**
  * Environment variable loader with Zod validation.
  * Fails fast in production if required variables are missing.
+ * Skips validation during Next.js build phase to allow Docker builds without secrets.
  */
 
 const isProduction = process.env.NODE_ENV === 'production'
+
+// Skip validation during build time (Next.js build or Docker build)
+const isBuildTime =
+  process.env.NEXT_PHASE === 'phase-production-build' ||
+  process.env.SKIP_ENV_VALIDATION === '1'
 
 // Schema for tunables (with defaults)
 const tunablesSchema = z.object({
@@ -48,13 +54,33 @@ const devRequiredSchema = z.object({
 })
 
 // Combined schema based on environment
-const envSchema = isProduction
-  ? requiredSchema.merge(tunablesSchema)
-  : devRequiredSchema.merge(tunablesSchema)
+// During build time, use dev schema (with defaults) to avoid throwing
+const envSchema =
+  isProduction && !isBuildTime
+    ? requiredSchema.merge(tunablesSchema)
+    : devRequiredSchema.merge(tunablesSchema)
 
 type Env = z.infer<typeof envSchema>
 
 function loadEnv(): Env {
+  // During build time, return safe defaults without validation
+  if (isBuildTime) {
+    console.log('⏭️  Skipping env validation (build time)')
+    return devRequiredSchema.merge(tunablesSchema).parse({
+      // Provide minimal defaults for build
+      AUTH_SECRET: 'build-time-placeholder',
+      NEXTAUTH_URL: 'http://localhost:3000',
+      APP_URL: 'http://localhost:3000',
+      DATABASE_URL: 'file:./build.db',
+      SMTP_HOST: '',
+      SMTP_PORT: '587',
+      SMTP_SECURE: 'false',
+      SMTP_USER: '',
+      SMTP_PASS: '',
+      SMTP_FROM: 'noreply@localhost',
+    }) as Env
+  }
+
   const result = envSchema.safeParse({
     AUTH_SECRET: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
