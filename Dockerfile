@@ -1,4 +1,8 @@
 # syntax = docker/dockerfile:1
+# =====================================================
+# CRM Copilot - Production Dockerfile
+# Multi-stage build for Next.js + Prisma + SQLite
+# =====================================================
 
 # Adjust NODE_VERSION as desired
 ARG NODE_VERSION=22.11.0
@@ -36,7 +40,7 @@ RUN npx prisma generate
 COPY . .
 
 # Build application
-RUN npx next build --experimental-build-mode compile
+RUN pnpm build
 
 
 # Final stage for app image
@@ -44,25 +48,27 @@ FROM base
 
 # Install packages needed for deployment
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y ca-certificates openssl wget && \
+    apt-get install --no-install-recommends -y ca-certificates openssl && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
-# Install litestream
-RUN wget https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.deb && \
-    dpkg -i litestream-v0.3.13-linux-amd64.deb && \
-    rm litestream-v0.3.13-linux-amd64.deb
-
 # Copy built application
-COPY --from=build /app /app
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=build /app/package.json ./package.json
 
 # Setup sqlite3 on a separate volume
 RUN mkdir -p /data
 VOLUME /data
 
-# Entrypoint prepares the database.
-ENTRYPOINT [ "/app/docker-entrypoint.js" ]
-
-# Start the server by default, this can be overwritten at runtime
+# Start the server
 EXPOSE 3000
-ENV DATABASE_URL="file:///data/sqlite.db"
-CMD [ "pnpm", "run", "start" ]
+ENV DATABASE_URL="file:/data/prod.db"
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Run migrations then start the app
+CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]

@@ -30,8 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files (NEVER include in image)
+.env
+.env.*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +41,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Git
+.git
+.gitignore
+
+# Docker (avoid recursive copy)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+docs/
+LICENSE
+
+# SQLite local database
+*.db
+*.db-journal
+prisma/*.db
+
+# Scripts
+scripts/
