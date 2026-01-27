@@ -1,0 +1,213 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTH.JS MODELS
+// ============================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// USER & MULTI-TENANT MODELS
+// ============================================
+
+model User {
+  id                  String       @id @default(cuid())
+  name                String?
+  email               String?      @unique
+  emailVerified       DateTime?
+  image               String?
+  password            String?
+  selectedWorkspaceId String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  accounts             Account[]
+  sessions             Session[]
+  memberships          Membership[]
+  selectedWorkspace    Workspace?             @relation("SelectedWorkspace", fields: [selectedWorkspaceId], references: [id])
+  invitationsCreated   Invitation[]           @relation("InvitationsCreated")
+  invitationsAccepted  Invitation[]           @relation("InvitationsAccepted")
+  passwordResetTokens  PasswordResetToken[]
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships      Membership[]
+  clients          Client[]
+  activities       Activity[]
+  followUps        FollowUp[]
+  invitations      Invitation[]
+  selectedByUsers  User[]       @relation("SelectedWorkspace")
+}
+
+// Role: OWNER | MEMBER
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        String   @default("MEMBER")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+// ============================================
+// CRM MODELS
+// ============================================
+
+// Status: PROSPECT | ACTIVE | INACTIVE
+model Client {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  email       String?
+  phone       String?
+  status      String   @default("PROSPECT")
+  tags        String   @default("[]") // JSON array stored as string
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  activities Activity[]
+  followUps  FollowUp[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+}
+
+// Type: NOTE | CALL | EMAIL | MEETING
+model Activity {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientId    String
+  type        String
+  content     String
+  occurredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([clientId])
+  @@index([workspaceId, clientId])
+}
+
+// Status: OPEN | DONE
+model FollowUp {
+  id          String   @id @default(cuid())
+  workspaceId String
+  clientId    String
+  reason      String
+  dueDate     DateTime
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client    Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([clientId])
+  @@index([workspaceId, status])
+  @@index([workspaceId, dueDate])
+}
+
+// ============================================
+// INVITATION MODEL
+// ============================================
+
+model Invitation {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  tokenHash        String    @unique
+  role             String    @default("MEMBER") // MEMBER | OWNER
+  createdByUserId  String
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdByUser  User      @relation("InvitationsCreated", fields: [createdByUserId], references: [id])
+  acceptedByUser User?     @relation("InvitationsAccepted", fields: [acceptedByUserId], references: [id])
+
+  @@index([workspaceId])
+  @@index([tokenHash])
+}
+
+// ============================================
+// PASSWORD RESET MODEL
+// ============================================
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+}
