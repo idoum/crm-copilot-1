@@ -416,3 +416,9 @@ docker run --rm -it \
 ```bash
 docker compose exec nginx nginx -t
 ```
+
+### teste commit
+
+```bash
+
+```
